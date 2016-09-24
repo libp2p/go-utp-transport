@@ -1,0 +1,41 @@
+{
+  "author": "whyrusleeping",
+  "bugs": {
+    "url": "https://github.com/libp2p/go-utp-transport"
+  },
+  "gx": {
+    "dvcsimport": "github.com/libp2p/go-utp-transport"
+  },
+  "gxDependencies": [
+    {
+      "author": "whyrusleeping",
+      "hash": "QmYzDkkgAEmrcNzFCiYo6L1dTX4EAG1gZkbtdbd9trL4vd",
+      "name": "go-multiaddr",
+      "version": "0.0.0"
+    },
+    {
+      "author": "whyrusleeping",
+      "hash": "QmY83KqqnQ286ZWbV2x7ixpeemH3cBpk8R54egS619WYff",
+      "name": "go-multiaddr-net",
+      "version": "1.3.0"
+    },
+    {
+      "author": "whyrusleeping",
+      "hash": "QmeLQ13LftT9XhNn22piZc3GP56fGqhijuL5Y8KdUaRn1g",
+      "name": "mafmt",
+      "version": "1.1.1"
+    },
+    {
+      "author": "whyrusleeping",
+      "hash": "QmPSR1zYgWRmTSt6nTGXdeeUhWkq9AdvK4sva4Y2H5daPi",
+      "name": "utp",
+      "version": "0.0.0"
+    }
+  ],
+  "gxVersion": "0.4.0",
+  "language": "go",
+  "license": "MIT",
+  "name": "go-utp-transport",
+  "version": "1.6.0"
+}
+
