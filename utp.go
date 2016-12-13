@@ -7,9 +7,10 @@ import (
 	"sync"
 
 	utp "github.com/anacrolix/utp"
-	ma "github.com/jbenet/go-multiaddr"
-	manet "github.com/jbenet/go-multiaddr-net"
-	mafmt "github.com/whyrusleeping/mafmt"
+	mafmt "gx/ipfs/QmQkdkvXE4oKXAcLZK5d7Zc6xvyukQc8WVjX7QvxDJ7hJj/mafmt"
+	manet "gx/ipfs/QmT6Cp31887FpAc25z25YHgpFJohZedrYLWPPspRtj1Brp/go-multiaddr-net"
+	ma "gx/ipfs/QmUAQaWbKxGCUTuoQVvvicbQNZ9APF5pDGWyAZSe93AtKH/go-multiaddr"
+	tpt "gx/ipfs/QmWMia2fBVBesMerbtApQY7Tj2sgTaziveBACfCRUcv45f/go-libp2p-transport"
 )
 
 var errIncorrectNetAddr = fmt.Errorf("incorrect network addr conversion")
@@ -43,10 +44,10 @@ func (d *UtpTransport) Matches(a ma.Multiaddr) bool {
 type UtpSocket struct {
 	s         *utp.Socket
 	laddr     ma.Multiaddr
-	transport Transport
+	transport tpt.Transport
 }
 
-func (t *UtpTransport) Listen(laddr ma.Multiaddr) (Listener, error) {
+func (t *UtpTransport) Listen(laddr ma.Multiaddr) (tpt.Listener, error) {
 	t.sockLock.Lock()
 	defer t.sockLock.Unlock()
 	s, ok := t.sockets[laddr.String()]
@@ -63,7 +64,7 @@ func (t *UtpTransport) Listen(laddr ma.Multiaddr) (Listener, error) {
 	return ns, nil
 }
 
-func (t *UtpTransport) Dialer(laddr ma.Multiaddr, opts ...DialOpt) (Dialer, error) {
+func (t *UtpTransport) Dialer(laddr ma.Multiaddr, opts ...tpt.DialOpt) (tpt.Dialer, error) {
 	t.sockLock.Lock()
 	defer t.sockLock.Unlock()
 	s, ok := t.sockets[laddr.String()]
@@ -80,7 +81,7 @@ func (t *UtpTransport) Dialer(laddr ma.Multiaddr, opts ...DialOpt) (Dialer, erro
 	return ns, nil
 }
 
-func (t *UtpTransport) newConn(addr ma.Multiaddr, opts ...DialOpt) (*UtpSocket, error) {
+func (t *UtpTransport) newConn(addr ma.Multiaddr, opts ...tpt.DialOpt) (*UtpSocket, error) {
 	network, netaddr, err := manet.DialArgs(addr)
 	if err != nil {
 		return nil, err
@@ -103,11 +104,11 @@ func (t *UtpTransport) newConn(addr ma.Multiaddr, opts ...DialOpt) (*UtpSocket, 
 	}, nil
 }
 
-func (s *UtpSocket) Dial(raddr ma.Multiaddr) (Conn, error) {
+func (s *UtpSocket) Dial(raddr ma.Multiaddr) (tpt.Conn, error) {
 	return s.DialContext(context.Background(), raddr)
 }
 
-func (s *UtpSocket) DialContext(ctx context.Context, raddr ma.Multiaddr) (Conn, error) {
+func (s *UtpSocket) DialContext(ctx context.Context, raddr ma.Multiaddr) (tpt.Conn, error) {
 	_, addr, err := manet.DialArgs(raddr)
 	if err != nil {
 		return nil, err
@@ -124,13 +125,13 @@ func (s *UtpSocket) DialContext(ctx context.Context, raddr ma.Multiaddr) (Conn, 
 		return nil, err
 	}
 
-	return &connWrap{
-		Conn:      mnc,
-		transport: s.transport,
+	return &tpt.ConnWrap{
+		Conn: mnc,
+		Tpt:  s.transport,
 	}, nil
 }
 
-func (s *UtpSocket) Accept() (Conn, error) {
+func (s *UtpSocket) Accept() (tpt.Conn, error) {
 	c, err := s.s.Accept()
 	if err != nil {
 		return nil, err
@@ -141,9 +142,9 @@ func (s *UtpSocket) Accept() (Conn, error) {
 		return nil, err
 	}
 
-	return &connWrap{
-		Conn:      mnc,
-		transport: s.transport,
+	return &tpt.ConnWrap{
+		Conn: mnc,
+		Tpt:  s.transport,
 	}, nil
 }
 
@@ -163,7 +164,7 @@ func (t *UtpSocket) Multiaddr() ma.Multiaddr {
 	return t.laddr
 }
 
-var _ Transport = (*UtpTransport)(nil)
+var _ tpt.Transport = (*UtpTransport)(nil)
 
 func parseUtpNetAddr(a net.Addr) (ma.Multiaddr, error) {
 	var udpaddr *net.UDPAddr
