@@ -10,11 +10,9 @@ import (
 	manet "github.com/multiformats/go-multiaddr-net"
 )
 
-var errNotUtp = fmt.Errorf("was not given a valid utp address")
-
 var utpAddrSpec = &manet.NetCodec{
 	ProtocolName:     "utp",
-	NetAddrNetworks:  []string{"utp", "utp4", "utp6"},
+	NetAddrNetworks:  []string{"utp", "utp4", "utp6", "utp/udp", "utp/udp4", "utp/udp6"},
 	ParseNetAddr:     parseUtpNetAddr,
 	ConvertMultiaddr: parseUtpMaddr,
 }
@@ -41,7 +39,7 @@ func parseUtpNetAddr(udpaddr net.Addr) (ma.Multiaddr, error) {
 		// Encapsulate
 		return ipm.Encapsulate(utpm), nil
 	default:
-		return nil, errNotUtp
+		return nil, fmt.Errorf("\"%#v\" is not given a valid utp address", udpaddr)
 	}
 
 }

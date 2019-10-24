@@ -26,8 +26,8 @@ type UtpTransport struct {
 	socket *utp.Socket
 }
 
-func NewUtpTransport(u *tptu.Upgrader) *UtpTransport {
-	return &UtpTransport{Upgrader: u}
+func NewUTPTransport(u *tptu.Upgrader) *UtpTransport {
+	return &UtpTransport{Upgrader: u, socket: nil}
 }
 
 func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) (tpt.CapableConn, error) {
