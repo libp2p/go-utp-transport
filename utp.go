@@ -17,6 +17,8 @@ import (
 
 var emptyUtpMa, _ = ma.NewMultiaddr("/utp")
 
+var _ tpt.Transport = (*UtpTransport)(nil)
+
 type UtpTransport struct {
 	// The upgrader upgrade connections from raw utp to full saffed multiplexed ones.
 	// I'm not sure if the default encryption and multiplexer are capable to deal well with utp, need test.
