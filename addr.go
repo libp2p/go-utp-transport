@@ -1,5 +1,7 @@
 package utp
 
+// This file manage the parsing and registering part.
+
 import (
 	"fmt"
 	"net"
