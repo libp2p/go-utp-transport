@@ -30,8 +30,8 @@ type UtpTransport struct {
 	// Socket Locker (ip 4 or 6)
 	// The RWMutex is to avoid race issue.
 	// Multiple dial can occurs that why its RWMutex.
-	sl4 *sync.RWMutex
-	sl6 *sync.RWMutex
+	sl4 sync.RWMutex
+	sl6 sync.RWMutex
 
 	// This is the socket to reuse for dialing.
 	// Only socket with laddr passing manet.IPUnspecified() == true can be putted here to avoid to select a working socket beetween all avaible socket.
@@ -39,7 +39,7 @@ type UtpTransport struct {
 	socket6 *utp.Socket
 }
 
-func NewUTPTransport(u *tptu.Upgrader) *UtpTransport {
+func NewUtpTransport(u *tptu.Upgrader) *UtpTransport {
 	return &UtpTransport{Upgrader: u}
 }
 

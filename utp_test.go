@@ -15,12 +15,11 @@ import (
 func TestUtpTransport(t *testing.T) {
 	ia := makeInsecureTransport(t)
 	ib := makeInsecureTransport(t)
-
-	ta := NewUTPTransport(&tptu.Upgrader{
+	ta := NewUtpTransport(&tptu.Upgrader{
 		Secure: ia,
 		Muxer:  new(mplex.Transport),
 	})
-	tb := NewUTPTransport(&tptu.Upgrader{
+	tb := NewUtpTransport(&tptu.Upgrader{
 		Secure: ib,
 		Muxer:  new(mplex.Transport),
 	})
