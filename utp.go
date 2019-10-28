@@ -58,12 +58,26 @@ func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) 
 		t.sl4.RLock()
 		// Check for an open listener
 		if t.socket4 == nil {
-			// If not creating one with a new filedescriptor
-			utpconn, err = utp.DialContext(ctx, addr)
-		} else {
-			// If using the open one
-			utpconn, err = t.socket4.DialContext(ctx, network, addr)
+			// Unlock as read a lock as write, that shouldn't happend more than
+			// twice per execution so that not a really high cost
+			t.sl4.RUnlock()
+			t.sl4.Lock()
+			// Cheking again because it was unlocked for a moment
+			if t.socket4 == nil {
+				// If not creating a new listener not for listening, only dial
+				newList, err := utp.NewSocket("udp4", "0.0.0.0:0")
+				if err != nil {
+					return nil, err
+				}
+				// If there was no error setting a new socket
+				t.socket4 = newList
+			}
+			// Unlock and relock as read
+			t.sl4.Unlock()
+			t.sl4.RLock()
 		}
+		// If using the open one
+		utpconn, err = t.socket4.DialContext(ctx, network, addr)
 		// We have our socket, unlocking
 		t.sl4.RUnlock()
 	} else {
@@ -71,12 +85,26 @@ func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) 
 		t.sl6.RLock()
 		// Check for an open listener
 		if t.socket6 == nil {
-			// If not creating one with a new filedescriptor
-			utpconn, err = utp.DialContext(ctx, addr)
-		} else {
-			// If using the open one
-			utpconn, err = t.socket6.DialContext(ctx, network, addr)
+			// Unlock as read a lock as write, that shouldn't happend more than
+			// twice per execution so that not a really high cost
+			t.sl6.RUnlock()
+			t.sl6.Lock()
+			// Cheking again because it was unlocked for a moment
+			if t.socket6 == nil {
+				// If not creating a new listener not for listening, only dial
+				newList, err := utp.NewSocket("udp6", "[::]:0")
+				if err != nil {
+					return nil, err
+				}
+				// If there was no error setting a new socket
+				t.socket6 = newList
+			}
+			// Unlock and relock as read
+			t.sl6.Unlock()
+			t.sl6.RLock()
 		}
+		// If using the open one
+		utpconn, err = t.socket6.DialContext(ctx, network, addr)
 		// We have our socket, unlocking
 		t.sl6.RUnlock()
 	}
