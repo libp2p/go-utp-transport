@@ -7,7 +7,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/anacrolix/utp"
+	"github.com/anacrolix/go-libutp"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	tpt "github.com/libp2p/go-libp2p-core/transport"

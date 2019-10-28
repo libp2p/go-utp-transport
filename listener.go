@@ -5,7 +5,7 @@ package utp
 import (
 	"net"
 
-	"github.com/anacrolix/utp"
+	"github.com/anacrolix/go-libutp"
 
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr-net"
