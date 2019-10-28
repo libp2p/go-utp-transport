@@ -5,11 +5,14 @@ package utp
 import (
 	"context"
 	"net"
+	"sync"
 
 	"github.com/anacrolix/utp"
 	"github.com/libp2p/go-libp2p-core/peer"
+
 	tpt "github.com/libp2p/go-libp2p-core/transport"
 	tptu "github.com/libp2p/go-libp2p-transport-upgrader"
+
 	ma "github.com/multiformats/go-multiaddr"
 	mafmt "github.com/multiformats/go-multiaddr-fmt"
 	manet "github.com/multiformats/go-multiaddr-net"
@@ -24,12 +27,20 @@ type UtpTransport struct {
 	// I'm not sure if the default encryption and multiplexer are capable to deal well with utp, need test.
 	Upgrader *tptu.Upgrader
 
-	// The socket is the utp listener connection, its reused to dial.
-	socket *utp.Socket
+	// Socket Locker (ip 4 or 6)
+	// The RWMutex is to avoid race issue.
+	// Multiple dial can occurs that why its RWMutex.
+	sl4 *sync.RWMutex
+	sl6 *sync.RWMutex
+
+	// This is the socket to reuse for dialing.
+	// Only socket with laddr passing manet.IPUnspecified() == true can be putted here to avoid to select a working socket beetween all avaible socket.
+	socket4 *utp.Socket
+	socket6 *utp.Socket
 }
 
 func NewUTPTransport(u *tptu.Upgrader) *UtpTransport {
-	return &UtpTransport{Upgrader: u, socket: nil}
+	return &UtpTransport{Upgrader: u}
 }
 
 func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) (tpt.CapableConn, error) {
@@ -38,21 +49,43 @@ func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) 
 	if err != nil {
 		return nil, err
 	}
+
 	var utpconn net.Conn
 	// Doing the utp connection
-	// Check for an open listener
-	if t.socket == nil {
-		// If not creating one with a new filedescriptor
-		utpconn, err = utp.DialContext(ctx, addr)
+	// Check for the network
+	if raddr.Protocols()[0].Code == ma.P_IP4 {
+		// Lock in read mode to avoid race with listener
+		t.sl4.RLock()
+		// Check for an open listener
+		if t.socket4 == nil {
+			// If not creating one with a new filedescriptor
+			utpconn, err = utp.DialContext(ctx, addr)
+		} else {
+			// If using the open one
+			utpconn, err = t.socket4.DialContext(ctx, network, addr)
+		}
+		// We have our socket, unlocking
+		t.sl4.RUnlock()
 	} else {
-		// If using the open one
-		utpconn, err = t.socket.DialContext(ctx, network, addr)
+		// Lock in read mode to avoid race with listener
+		t.sl6.RLock()
+		// Check for an open listener
+		if t.socket6 == nil {
+			// If not creating one with a new filedescriptor
+			utpconn, err = utp.DialContext(ctx, addr)
+		} else {
+			// If using the open one
+			utpconn, err = t.socket6.DialContext(ctx, network, addr)
+		}
+		// We have our socket, unlocking
+		t.sl6.RUnlock()
 	}
 	if err != nil {
 		return nil, err
 	}
+
 	// Transforming it to an multiaddr conn
-	maconn, err := manet.WrapNetConn(utpconn)
+	maconn, err := newMaConnWithRaddr(utpconn, raddr)
 	if err != nil {
 		return nil, err
 	}
@@ -76,12 +109,26 @@ func (t *UtpTransport) Listen(laddr ma.Multiaddr) (tpt.Listener, error) {
 		return nil, err
 	}
 	// Wrapping it into an multiaddr one
-	malist, err := manet.WrapNetListener(utpsock)
+	malist, err := newListener(utpsock)
 	if err != nil {
 		return nil, err
 	}
 	// Adding it for reusing in dial
-	t.socket = utpsock
+	// Check if that IPUnspecified
+	if manet.IsIPUnspecified(laddr) {
+		// Check for ip version
+		if laddr.Protocols()[0].Code == ma.P_IP4 {
+			// Lock to avoid race with other listener or dialer
+			t.sl4.Lock()
+			t.socket4 = utpsock
+			t.sl4.Unlock()
+		} else {
+			// Lock to avoid race with other listener or dialer
+			t.sl6.Lock()
+			t.socket6 = utpsock
+			t.sl6.Unlock()
+		}
+	}
 	// Upgrading the listener to an safe and multiplexed one and return.
 	return t.Upgrader.UpgradeListener(t, malist), nil
 }
