@@ -141,22 +141,6 @@ func (t *UtpTransport) Listen(laddr ma.Multiaddr) (tpt.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Adding it for reusing in dial
-	// Check if that IPUnspecified
-	if manet.IsIPUnspecified(laddr) {
-		// Check for ip version
-		if laddr.Protocols()[0].Code == ma.P_IP4 {
-			// Lock to avoid race with other listener or dialer
-			t.sl4.Lock()
-			t.socket4 = utpsock
-			t.sl4.Unlock()
-		} else {
-			// Lock to avoid race with other listener or dialer
-			t.sl6.Lock()
-			t.socket6 = utpsock
-			t.sl6.Unlock()
-		}
-	}
 	// Upgrading the listener to an safe and multiplexed one and return.
 	return t.Upgrader.UpgradeListener(t, malist), nil
 }
