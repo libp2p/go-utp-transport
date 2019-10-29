@@ -67,6 +67,7 @@ func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) 
 				// If not creating a new listener not for listening, only dial
 				newList, err := utp.NewSocket("udp4", "0.0.0.0:0")
 				if err != nil {
+					t.sl4.Unlock()
 					return nil, err
 				}
 				// If there was no error setting a new socket
@@ -94,6 +95,7 @@ func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) 
 				// If not creating a new listener not for listening, only dial
 				newList, err := utp.NewSocket("udp6", "[::]:0")
 				if err != nil {
+					t.sl6.Unlock()
 					return nil, err
 				}
 				// If there was no error setting a new socket
