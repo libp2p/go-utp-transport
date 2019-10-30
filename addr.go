@@ -29,7 +29,7 @@ func parseUtpNetAddr(addr net.Addr) (ma.Multiaddr, error) {
 	ip := addrStr[0:portSep]
 	port := addrStr[portSep+1 : len(addrStr)]
 	var s string
-	if strings.Contains(ip, "[") || strings.Contains(ip, "]") || strings.Contains(addr.Network(), "6") {
+	if strings.Contains(addr.Network(), "6") || strings.Contains(ip, "[") || strings.Contains(ip, "]") {
 		s = "/ip6/" + ip + "/udp/" + port
 	} else {
 		s = "/ip4/" + ip + "/udp/" + port
