@@ -1,210 +1,180 @@
-package transport
+package utp
+
+// This file manage the network part.
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 
-	utp "github.com/anacrolix/utp"
-	mafmt "gx/ipfs/QmQkdkvXE4oKXAcLZK5d7Zc6xvyukQc8WVjX7QvxDJ7hJj/mafmt"
-	manet "gx/ipfs/QmT6Cp31887FpAc25z25YHgpFJohZedrYLWPPspRtj1Brp/go-multiaddr-net"
-	ma "gx/ipfs/QmUAQaWbKxGCUTuoQVvvicbQNZ9APF5pDGWyAZSe93AtKH/go-multiaddr"
-	tpt "gx/ipfs/QmWMia2fBVBesMerbtApQY7Tj2sgTaziveBACfCRUcv45f/go-libp2p-transport"
+	"github.com/anacrolix/go-libutp"
+	"github.com/libp2p/go-libp2p-core/peer"
+
+	tpt "github.com/libp2p/go-libp2p-core/transport"
+	tptu "github.com/libp2p/go-libp2p-transport-upgrader"
+
+	ma "github.com/multiformats/go-multiaddr"
+	mafmt "github.com/multiformats/go-multiaddr-fmt"
+	manet "github.com/multiformats/go-multiaddr-net"
 )
 
-var errIncorrectNetAddr = fmt.Errorf("incorrect network addr conversion")
-
-var utpAddrSpec = &manet.NetCodec{
-	ProtocolName:     "utp",
-	NetAddrNetworks:  []string{"utp", "utp4", "utp6"},
-	ParseNetAddr:     parseUtpNetAddr,
-	ConvertMultiaddr: parseUtpMaddr,
-}
-
-func init() {
-	manet.RegisterNetCodec(utpAddrSpec)
-}
-
-type UtpTransport struct {
-	sockLock sync.Mutex
-	sockets  map[string]*UtpSocket
-}
-
-func NewUtpTransport() *UtpTransport {
-	return &UtpTransport{
-		sockets: make(map[string]*UtpSocket),
-	}
-}
-
-func (d *UtpTransport) Matches(a ma.Multiaddr) bool {
-	return mafmt.UTP.Matches(a)
-}
-
-type UtpSocket struct {
-	s         *utp.Socket
-	laddr     ma.Multiaddr
-	transport tpt.Transport
-}
-
-func (t *UtpTransport) Listen(laddr ma.Multiaddr) (tpt.Listener, error) {
-	t.sockLock.Lock()
-	defer t.sockLock.Unlock()
-	s, ok := t.sockets[laddr.String()]
-	if ok {
-		return s, nil
-	}
-
-	ns, err := t.newConn(laddr)
-	if err != nil {
-		return nil, err
-	}
-
-	t.sockets[laddr.String()] = ns
-	return ns, nil
-}
-
-func (t *UtpTransport) Dialer(laddr ma.Multiaddr, opts ...tpt.DialOpt) (tpt.Dialer, error) {
-	t.sockLock.Lock()
-	defer t.sockLock.Unlock()
-	s, ok := t.sockets[laddr.String()]
-	if ok {
-		return s, nil
-	}
-
-	ns, err := t.newConn(laddr, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	t.sockets[laddr.String()] = ns
-	return ns, nil
-}
-
-func (t *UtpTransport) newConn(addr ma.Multiaddr, opts ...tpt.DialOpt) (*UtpSocket, error) {
-	network, netaddr, err := manet.DialArgs(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	s, err := utp.NewSocket("udp"+network[3:], netaddr)
-	if err != nil {
-		return nil, err
-	}
-
-	laddr, err := manet.FromNetAddr(s.LocalAddr())
-	if err != nil {
-		return nil, err
-	}
-
-	return &UtpSocket{
-		s:         s,
-		laddr:     laddr,
-		transport: t,
-	}, nil
-}
-
-func (s *UtpSocket) Dial(raddr ma.Multiaddr) (tpt.Conn, error) {
-	return s.DialContext(context.Background(), raddr)
-}
-
-func (s *UtpSocket) DialContext(ctx context.Context, raddr ma.Multiaddr) (tpt.Conn, error) {
-	_, addr, err := manet.DialArgs(raddr)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: update utp lib
-	con, err := s.s.Dial(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	mnc, err := manet.WrapNetConn(con)
-	if err != nil {
-		return nil, err
-	}
-
-	return &tpt.ConnWrap{
-		Conn: mnc,
-		Tpt:  s.transport,
-	}, nil
-}
-
-func (s *UtpSocket) Accept() (tpt.Conn, error) {
-	c, err := s.s.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	mnc, err := manet.WrapNetConn(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return &tpt.ConnWrap{
-		Conn: mnc,
-		Tpt:  s.transport,
-	}, nil
-}
-
-func (s *UtpSocket) Matches(a ma.Multiaddr) bool {
-	return mafmt.UTP.Matches(a)
-}
-
-func (t *UtpSocket) Close() error {
-	return t.s.Close()
-}
-
-func (t *UtpSocket) Addr() net.Addr {
-	return t.s.Addr()
-}
-
-func (t *UtpSocket) Multiaddr() ma.Multiaddr {
-	return t.laddr
-}
+var emptyUtpMa, _ = ma.NewMultiaddr("/utp")
 
 var _ tpt.Transport = (*UtpTransport)(nil)
 
-func parseUtpNetAddr(a net.Addr) (ma.Multiaddr, error) {
-	var udpaddr *net.UDPAddr
-	switch a := a.(type) {
-	case *utp.Addr:
-		udpaddr = a.Child.(*net.UDPAddr)
-	case *net.UDPAddr:
-		udpaddr = a
-	default:
-		return nil, fmt.Errorf("was not given a valid utp address")
-	}
+type UtpTransport struct {
+	// The upgrader upgrade connections from raw utp to full saffed multiplexed ones.
+	// I'm not sure if the default encryption and multiplexer are capable to deal well with utp, need test.
+	Upgrader *tptu.Upgrader
 
-	// Get IP Addr
-	ipm, err := manet.FromIP(udpaddr.IP)
-	if err != nil {
-		return nil, errIncorrectNetAddr
-	}
+	// Socket Locker (ip 4 or 6)
+	// The RWMutex is to avoid race issue.
+	// Multiple dial can occurs that why its RWMutex.
+	sl4 sync.RWMutex
+	sl6 sync.RWMutex
 
-	// Get UDP Addr
-	utpm, err := ma.NewMultiaddr(fmt.Sprintf("/udp/%d/utp", udpaddr.Port))
-	if err != nil {
-		return nil, errIncorrectNetAddr
-	}
-
-	// Encapsulate
-	return ipm.Encapsulate(utpm), nil
+	// This is the socket to reuse for dialing.
+	// Only socket with laddr passing manet.IPUnspecified() == true can be putted here to avoid to select a working socket beetween all avaible socket.
+	socket4 *utp.Socket
+	socket6 *utp.Socket
 }
 
-func parseUtpMaddr(maddr ma.Multiaddr) (net.Addr, error) {
-	utpbase, err := ma.NewMultiaddr("/utp")
+func NewUtpTransport(u *tptu.Upgrader) *UtpTransport {
+	return &UtpTransport{Upgrader: u}
+}
+
+func (t *UtpTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) (tpt.CapableConn, error) {
+	// Converting multiaddr to net addr
+	network, addr, err := manet.DialArgs(raddr.Decapsulate(emptyUtpMa))
 	if err != nil {
 		return nil, err
 	}
 
-	raw := maddr.Decapsulate(utpbase)
-
-	udpa, err := manet.ToNetAddr(raw)
+	var utpconn net.Conn
+	// Doing the utp connection
+	// Check for the network
+	if raddr.Protocols()[0].Code == ma.P_IP4 {
+		// Lock in read mode to avoid race with listener
+		t.sl4.RLock()
+		// Check for an open listener
+		if t.socket4 == nil {
+			// Unlock as read a lock as write, that shouldn't happend more than
+			// twice per execution so that not a really high cost
+			t.sl4.RUnlock()
+			t.sl4.Lock()
+			// Cheking again because it was unlocked for a moment
+			if t.socket4 == nil {
+				// If not creating a new listener not for listening, only dial
+				newList, err := utp.NewSocket("udp4", "0.0.0.0:0")
+				if err != nil {
+					t.sl4.Unlock()
+					return nil, err
+				}
+				// If there was no error setting a new socket
+				t.socket4 = newList
+			}
+			// Unlock and relock as read
+			t.sl4.Unlock()
+			t.sl4.RLock()
+		}
+		// If using the open one
+		utpconn, err = t.socket4.DialContext(ctx, network, addr)
+		// We have our socket, unlocking
+		t.sl4.RUnlock()
+	} else {
+		// Lock in read mode to avoid race with listener
+		t.sl6.RLock()
+		// Check for an open listener
+		if t.socket6 == nil {
+			// Unlock as read a lock as write, that shouldn't happend more than
+			// twice per execution so that not a really high cost
+			t.sl6.RUnlock()
+			t.sl6.Lock()
+			// Cheking again because it was unlocked for a moment
+			if t.socket6 == nil {
+				// If not creating a new listener not for listening, only dial
+				newList, err := utp.NewSocket("udp6", "[::]:0")
+				if err != nil {
+					t.sl6.Unlock()
+					return nil, err
+				}
+				// If there was no error setting a new socket
+				t.socket6 = newList
+			}
+			// Unlock and relock as read
+			t.sl6.Unlock()
+			t.sl6.RLock()
+		}
+		// If using the open one
+		utpconn, err = t.socket6.DialContext(ctx, network, addr)
+		// We have our socket, unlocking
+		t.sl6.RUnlock()
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	return &utp.Addr{udpa}, nil
+	// Transforming it to an multiaddr conn
+	maconn, err := newMaConnWithRaddr(utpconn, raddr)
+	if err != nil {
+		return nil, err
+	}
+	// Upgrading it to an safe mutliplexed one and return (the conn and the err).
+	return t.Upgrader.UpgradeOutbound(ctx, t, maconn, p)
+}
+
+func (t *UtpTransport) CanDial(addr ma.Multiaddr) bool {
+	return mafmt.UTP.Matches(addr)
+}
+
+func (t *UtpTransport) Listen(laddr ma.Multiaddr) (tpt.Listener, error) {
+	// Converting multiaddr to net addr
+	network, addr, err := manet.DialArgs(laddr.Decapsulate(emptyUtpMa))
+	if err != nil {
+		return nil, err
+	}
+	// Creating the socket
+	utpsock, err := utp.NewSocket(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	// Wrapping it into an multiaddr one
+	malist, err := newListener(utpsock, t)
+	if err != nil {
+		return nil, err
+	}
+	// Adding it for reusing in dial
+	// Check if that IPUnspecified
+	if manet.IsIPUnspecified(laddr) {
+		// Check for ip version
+		if laddr.Protocols()[0].Code == ma.P_IP4 {
+			// Lock to avoid race with other listener or dialer
+			t.sl4.Lock()
+			// Cheking for an already setuped reuse
+			if t.socket4 == nil {
+				// Setting up reuse
+				t.socket4 = utpsock
+			}
+			t.sl4.Unlock()
+		} else {
+			// Lock to avoid race with other listener or dialer
+			t.sl6.Lock()
+			// Cheking for an already setuped reuse
+			if t.socket6 == nil {
+				// Setting up reuse
+				t.socket6 = utpsock
+			}
+			t.sl6.Unlock()
+		}
+	}
+	// Upgrading the listener to an safe and multiplexed one and return.
+	return t.Upgrader.UpgradeListener(t, malist), nil
+}
+
+func (t *UtpTransport) Protocols() []int {
+	return []int{ma.P_UTP}
+}
+
+func (t *UtpTransport) Proxy() bool {
+	return false
 }
