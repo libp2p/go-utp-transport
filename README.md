@@ -9,6 +9,11 @@ go-utp-transport
 
 > A libp2p transport implementation for utp.
 
+## ⚠️ Unmaintained ⚠️
+
+This library is not currently maintained and isn't kept up-to-date with the latest go-libp2p releases. If you'd like to revive it, please fork it, get it working again, and start a discussion on https://discuss.libp2p.io/.
+
+However, if you're just looking for a UDP-based libp2p transport, try [QUIC](https://github.com/libp2p/go-libp2p-quic-transport/). It's better in just about every way (1RTT handshake, built-in stream multiplexing with no head of line blocking, etc.).
 
 ## Table of Contents
 
